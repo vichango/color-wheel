@@ -9,6 +9,8 @@ int potPin = A0;
 boolean ledState = false;
 long previousMicros = 0;
 
+long previousUpdateMicros = 0;
+
 int flashLength = 100;
 
 const int nbOfValues = 32;
@@ -17,6 +19,9 @@ double roundsPerSecond = 25;
 
 long flashInterval = 1000;
 double flashPerSecond = 25;
+
+double fixPercentage = 0.0;
+long fixedFlashInterval = 1000;
 
 int flashAt = 0;
 boolean shouldFlash[6];
@@ -72,45 +77,50 @@ void loop() {
 		digitalWrite(ledPin, ledState);
 	}
 
-	if(currentMicros - previousMicros > flashInterval) {
+	if (currentMicros - previousMicros > fixedFlashInterval) {
 		previousMicros = currentMicros;
 
 		ledState = flashOrNot();
 		digitalWrite(ledPin, ledState);
 	}
+
+	if (currentMicros - previousUpdateMicros > 1000000) {
+		previousUpdateMicros = currentMicros;
+		updateFixedFlashInterval();
+	}
 }
 
 void updateRoundsPerSecond() {
-	double perThousand = map(analogRead(potPin), 0, 1023, -100, 100);
-	roundsPerSecond = (1.0 + (perThousand / 1000)) * 1000000 / (4 * readPulseLength());
+	roundsPerSecond = 1000000 / (4 * readPulseLength());
 }
 
-long readPulseLength() {  
-	// shift 4 values on the array
-	for (int i = 0; i < nbOfValues; i++) {
-		fanPulseValues[i + 4] = fanPulseValues[i];
+long readPulseLength() { 
+	if (false) {
+		// Shift 4 values on the array
+		for (int i = 0; i < nbOfValues; i++) {
+			fanPulseValues[i + 4] = fanPulseValues[i];
+		}
+
+		for (int i = 0; i < 2; i++) {
+			fanPulseValues[2 * i] = pulseIn(tachoPin, HIGH);
+			fanPulseValues[2 * i + 1] = pulseIn(tachoPin, LOW);
+		}
+
+		long average = 0;
+		for (int i = 0; i < nbOfValues; i++) {
+			average += fanPulseValues[i];
+		}
+
+		return average / nbOfValues;
+	} else {
+		long average = 0;
+		for (int i = 0; i < 4; i++) {
+			average = average + pulseIn(tachoPin, HIGH);
+			average = average + pulseIn(tachoPin, LOW);
+		}
+
+		return average / 8;
 	}
-
-	for (int i = 0; i < 2; i++) {
-		fanPulseValues[2 * i] = pulseIn(tachoPin, HIGH);
-		fanPulseValues[2 * i + 1] = pulseIn(tachoPin, LOW);
-	}
-
-	// if (debug) {
-	// 	Serial.print("pulseValues=");
-	// 	for (int i = 0; i < nbOfValues-1; i++) {
-	// 		Serial.print(fanPulseValues[i]);
-	// 		Serial.print(",");
-	// 	}
-	// 	Serial.println(fanPulseValues[nbOfValues-1]);
-	// }
-
-	long average = 0;
-	for (int i = 0; i < nbOfValues; i++) {
-		average += fanPulseValues[i];
-	}
-
-	return average / nbOfValues;
 }
 
 void setSpectacle() {
@@ -149,16 +159,11 @@ void setSpectacle() {
 
 	count = count + 1;
 
-	// if (debug) {
-	// 	Serial.print("shouldFlash=");
-	// 	for (int i = 0; i < 5; i++) {
-	// 		Serial.print(shouldFlash[i]);
-	// 		Serial.print(",");
-	// 	}
-	// 	Serial.println(shouldFlash[5]);
-	// }
-
 	flashInterval = 1000000 / flashPerSecond;
+}
+
+void updateFixedFlashInterval() {
+	fixedFlashInterval = (1.0 + ((analogRead(potPin) - 512.0) / 5120)) * flashInterval;
 }
 
 boolean flashOrNot() {
